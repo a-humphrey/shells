@@ -3,24 +3,11 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Check if an image name is provided
-if [ -z "$1" ]; then
-  echo "Usage: $0 <image_name> <password>"
-  exit 1
-fi
-
-# Check if a password is provided
-if [ -z "$2" ]; then
-  echo "Usage: $0 <image_name> <password>"
-  exit 1
-fi
-
 # Set variables
-IMAGE_NAME="$1"  # Use the first argument as the image name
-PASSWORD="$2"  # Use the second argument as the password
+IMAGE_NAME="jupyter_env"  # Hardcoded image name
+CONTAINER_NAME="jupyter_env"  # Fixed container name
 DIR_NAME="$IMAGE_NAME"  # Directory for the Dockerfile and related files
 DOCKERFILE="$DIR_NAME/Dockerfile"
-CONTAINER_NAME="jupyter_env"  # Fixed container name
 HOST_PORT=8888
 CONTAINER_PORT=8888
 WORKSPACE=$(pwd)  # Current directory as workspace
@@ -65,10 +52,6 @@ RUN pip install --no-cache-dir \\
     polars \\
     plotly
 
-# Configure Jupyter default password
-RUN mkdir -p /root/.jupyter && \\
-    echo "c.NotebookApp.password = \"\$(python3 -c 'from notebook.auth import passwd; print(passwd(\"$PASSWORD\"))')\"" > /root/.jupyter/jupyter_notebook_config.py
-
 # Create a working directory
 WORKDIR /workspace
 
@@ -90,6 +73,16 @@ docker run -d --name "$CONTAINER_NAME" -p $HOST_PORT:$CONTAINER_PORT -v $WORKSPA
 # Wait a moment to ensure the container starts
 sleep 5
 
+# Retrieve and print the Jupyter token using docker exec
+echo "Fetching the Jupyter token..."
+TOKEN=$(docker exec "$CONTAINER_NAME" bash -c "jupyter server list" | grep -oP '(?<=token=)[a-zA-Z0-9]+')
+if [ -n "$TOKEN" ]; then
+  echo "Access Jupyter Lab at: http://localhost:$HOST_PORT/?token=$TOKEN"
+else
+  echo "Failed to retrieve the Jupyter token. Check the container logs for details:"
+  echo "docker logs $CONTAINER_NAME"
+  exit 1
+fi
+
 # Instructions
-echo "Access Jupyter Lab at: http://localhost:$HOST_PORT with the password: $PASSWORD"
 echo "To stop the container: docker stop $CONTAINER_NAME"
